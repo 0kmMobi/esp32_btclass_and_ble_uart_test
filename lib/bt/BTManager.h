@@ -38,6 +38,7 @@ public:
     String getNextCommandLowCase() {
         if (commandQueue.empty()) return "";
         String command = commandQueue.front();
+        command.trim();
         command.toLowerCase();
         commandQueue.pop();
         return command;
@@ -49,12 +50,12 @@ public:
     const String DeviceNameDefault = "UART-Test-LE";
     const String BTLogPrefix = "BLE: ";
     #include "BTManLowEnImpl.h"
-    BLEManager btManager;
+    BLEManager SerialBT;
 #else
     const String DeviceNameDefault = "UART-Test-Classic";
     const String BTLogPrefix = "BTClass: ";
     #include "BTManClassImpl.h"
-    BTClassicManager btManager;
+    BTClassicManager SerialBT;
 #endif
 
 #endif // BLUETOOTH_MANAGER_H

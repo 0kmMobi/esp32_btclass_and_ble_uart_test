@@ -24,7 +24,7 @@
       pinMode(LED_PIN, OUTPUT);
       digitalWrite(LED_PIN, LED_PIN_INVERT?HIGH:LOW);
 
-      btManager.begin(DeviceNameDefault);
+      SerialBT.begin(DeviceNameDefault);
       Serial.println("Setup complete.");
   }
 
@@ -37,7 +37,7 @@
       notifyTimerStart = millis();
       if(shouldSendCounter) {
         Serial.printf("Counter: %d\n", counter);
-        btManager.print(String(counter));
+        SerialBT.print(String(counter));
         counter ++;
       } else {
         Serial.printf("Counter sending stopped");
@@ -46,32 +46,31 @@
   }
 
   void loop() {
-      if(btManager.hasClient()) {
+      if(SerialBT.hasClient()) {
         tryToSendCounter();
 
-        if (btManager.hasNextCommand()) {
-            String command = btManager.getNextCommandLowCase();
-            command.trim();
+        if (SerialBT.hasNextCommand()) {
+            String command = SerialBT.getNextCommandLowCase();
             Serial.println("Received command: " + command);
 
             if (command.equals("led_on")) {
                 digitalWrite(LED_PIN, LED_PIN_INVERT?LOW:HIGH);
                 String sLed = String("LED switched ON");
-                btManager.print(sLed);
+                SerialBT.print(sLed);
             } else if (command.equals("led_off")) {
                 digitalWrite(LED_PIN, LED_PIN_INVERT?HIGH:LOW);
-                btManager.print("LED switched OFF");
+                SerialBT.print("LED switched OFF");
             } else if (command.equals("reset")) {
                 counter = 0;
-                btManager.print("Counter reset");
+                SerialBT.print("Counter reset");
             } else if (command.equals("stop")) {
                 shouldSendCounter = false;
-                btManager.print("Counter sending stopped");
+                SerialBT.print("Counter sending stopped");
             } else if (command.equals("start")) {
                 shouldSendCounter = true;
-                btManager.print("Counter sending STARTED");
+                SerialBT.print("Counter sending STARTED");
             } else {
-                btManager.print("Unknown command: " + command);
+                SerialBT.print("Unknown command: " + command);
             }
         }
       }

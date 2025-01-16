@@ -65,11 +65,10 @@ private:
     bool sendToClient(const String &data) const override {
         if (!connected) return false;
         #ifdef LOG_VERBOSE
-            Serial.printf("%ssendToClient: '%s'\n", BTLogPrefix, data.c_str());
+            Serial.printf("%s sendToClient: '%s'\n", BTLogPrefix, data.c_str());
         #endif
         SerialBTC->printf("%s", data.c_str());
-        int count = 0;
-        SerialBTC->print("" + count);
+        SerialBTC->flush();
         return true;
     }
 
