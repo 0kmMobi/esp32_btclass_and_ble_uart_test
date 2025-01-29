@@ -45,6 +45,10 @@ class BLECallbacksData : public BLECharacteristicCallbacks {
  * */
 class BLEManager: public BluetoothManager {
 private:
+    const uint16_t headerReserve = 3; // Запас на BLE заголовки
+    const String fragmentDelimiter = "\x0B"; // Символ конца не последней части сообщения
+    String partialMsg = ""; // Буфер для частичного сообщения
+
     BLEServer *pServer;
     BLEService *pService;
     BLECharacteristic *rxCharacteristic;
@@ -61,7 +65,7 @@ public:
         // https://github.com/nkolban/esp32-snippets/issues/325
         // Basically characteristic value read on ios only shows the first 23 bytes
         // ... apple has no MTU setting ...
-        BLEDevice::setMTU(32); // default 23
+        //BLEDevice::setMTU(32); // default 23
         pServer = BLEDevice::createServer();
 
         BLECallbacksStatus* callbacksStatus = new BLECallbacksStatus(this);
@@ -81,6 +85,8 @@ public:
         pServer->getAdvertising()->start();
         #ifdef LOG_VERBOSE
             Serial.println(BTLogPrefix + "initialized and advertising");
+            uint16_t mtu = getPayloadSize();
+            Serial.printf("%s Default payload size = %d\n", BTLogPrefix.c_str(), mtu);
         #endif
     }
 
@@ -89,13 +95,38 @@ public:
     }
 
 private:
+    uint16_t getPayloadSize() const {
+        return BLEDevice::getMTU() - headerReserve;
+    }
+
     bool sendToClient(const String &data) const override {
         if (!connected) return false;
+
+        const uint16_t payloadSize = getPayloadSize();
+        const uint16_t dataLength = data.length();
+        
         #ifdef LOG_VERBOSE
-            Serial.printf("%ssendToClient: '%s'\n", BTLogPrefix, data.c_str());
+            Serial.printf("%ssendToClient: '%s'; MTU = %d; dataLength= %d \n", BTLogPrefix, data.c_str(), payloadSize, dataLength);
         #endif
-        txCharacteristic->setValue(data.c_str());
-        txCharacteristic->notify();
+
+        if (dataLength <= payloadSize) {
+            txCharacteristic->setValue(data.c_str());
+            txCharacteristic->notify();
+        } else {
+            uint16_t partLength = payloadSize - fragmentDelimiter.length();
+            for (int i = 0; i < dataLength; i += partLength) {
+                String fragment = "";
+                // Если это не последняя часть, добавляем символ fragmentDelimiter
+                if (i + partLength >= dataLength - 1) {
+                    fragment = data.substring(i, dataLength);
+                    i++;
+                } else {
+                    fragment = data.substring(i, i + partLength) + fragmentDelimiter;
+                }
+                txCharacteristic->setValue(fragment.c_str());
+                txCharacteristic->notify();
+            }
+        }
         return true;
     }
     
@@ -104,6 +135,11 @@ private:
             Serial.println(BTLogPrefix + "Device connected");
         #endif
         connected = true;
+        #ifdef LOG_VERBOSE
+            uint16_t mtu = getPayloadSize();
+            Serial.printf("%s Payload size after connect = %d\n", BTLogPrefix.c_str(), mtu);
+        #endif
+        partialMsg = "";
     }
 
     void onDisconnect(BLEServer *pServer) {
@@ -115,11 +151,21 @@ private:
     }
 
     void onDataReceived(BLECharacteristic *pCharacteristic) {
-        String receivedData = pCharacteristic->getValue().c_str();
+        String msg = pCharacteristic->getValue().c_str();
+
+        if (msg.endsWith(fragmentDelimiter)) { // Убираем символ Переноса и добавляем к буферу
+            String msgPart = msg.substring(0, msg.length() - 1);
         #ifdef LOG_VERBOSE
-            Serial.printf("%s received: '%s'\n", BTLogPrefix, receivedData);
+            Serial.printf("%s received Part: '%s' (%d)\n", BTLogPrefix, msgPart, msgPart.length());
         #endif
-        commandQueue.push(receivedData);
+            partialMsg += msgPart;
+        } else { // Добавляем остаток к буферу и считаем сообщение полным
+        #ifdef LOG_VERBOSE
+            Serial.printf("%s received End: '%s' (%d)\n", BTLogPrefix, msg, msg.length());
+        #endif
+            commandQueue.push(partialMsg + msg);
+            partialMsg = "";
+        }
     }
 
     friend class BLECallbacksStatus;

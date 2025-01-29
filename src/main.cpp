@@ -34,12 +34,13 @@
 
   void tryToSendCounter() {
     if(notifyTimerStart + 2000L <= millis()) {
-      notifyTimerStart = millis();
+        notifyTimerStart = millis();
       if(shouldSendCounter) {
         Serial.printf("Counter: %d\n", counter);
         SerialBT.print(String(counter));
         counter ++;
       } else {
+        notifyTimerStart += 1000000L; // Чтобы сообщение ниже только 1 раз вывелось в консоль
         Serial.printf("Counter sending stopped");
       }
     }
@@ -68,6 +69,7 @@
                 SerialBT.print("Counter sending stopped");
             } else if (command.equals("start")) {
                 shouldSendCounter = true;
+                notifyTimerStart = millis() - 2000L;
                 SerialBT.print("Counter sending STARTED");
             } else {
                 SerialBT.print("Unknown command: " + command);
